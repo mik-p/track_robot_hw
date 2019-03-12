@@ -11,6 +11,19 @@
 namespace track_robot_hw
 {
 
+typedef struct
+{
+  double position;
+  double velocity;
+} feedback_t;
+
+class HWRESTClient
+{
+public:
+  feedback_t get(std::string endpoint){return {0, 0};}
+  void post(std::string endpoint, double cmd){}
+};
+
 class TrackInterface : public hardware_interface::RobotHW, public hardware_interface::HardwareInterface
 {
 public:
@@ -19,6 +32,8 @@ public:
 
     bool init(ros::NodeHandle& root_nh, ros::NodeHandle& rnh, ros::NodeHandle& topics_nh)
     {
+      // get hw mode
+      rnh.getParam("simulated", simulated);
       // get hw endpoint
       rnh.getParam("ip_address", ip_address);
       rnh.getParam("port", port);
@@ -58,17 +73,35 @@ public:
 
     void read(const ros::Time& time, const ros::Duration& period)
     {
-      for(int i = 0; i < velocity_state.size(); i++)
+      for(int i = 0; i < velocity_state.size(); i++) // get feedback from hw
       {
-        // ROS_INFO("%0.3f", velocity_command[i]);
-        velocity_state[i] = velocity_command[i];
+        feedback_t feedback = {0, 0};
+
+        if(!simulated)
+        {
+          feedback = hw_client.get("http://" + ip_address + ":" + port + feedback_endpoint[i]);
+        }
+        else
+        {
+          feedback.velocity = velocity_command[i]; // loopback on simulation
+        }
+
+        // set new states
+        velocity_state[i] = feedback.velocity;
         position_state[i] += velocity_state[i] * period.toSec();
       }
     }
 
     void write(const ros::Time& time, const ros::Duration& period)
     {
-      return;
+      if(simulated) return; // do nothing if in simulation
+
+      // probs apply command limits here
+
+      for(int i = 0; i < velocity_state.size(); i++) // publish commands to hw
+      {
+        hw_client.post("http://" + ip_address + ":" + port + control_endpoint[i], velocity_command[i]);
+      }
     }
 
 protected:
@@ -82,6 +115,12 @@ protected:
 
     // given setpoints
     std::vector<double> velocity_command;
+
+    // simulation flag
+    bool simulated;
+
+    // hardware REST client
+    HWRESTClient hw_client;
 
     // hw endpoints
     std::string ip_address;

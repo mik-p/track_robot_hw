@@ -1,6 +1,7 @@
 loop_hz: 10
 ip_address: "192.168.1.177"
 port: "80"
+simulated: true
 joints:
   - left_wheel_joint
   - right_wheel_joint
