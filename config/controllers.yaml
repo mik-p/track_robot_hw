@@ -1,0 +1,29 @@
+controller:
+  state:
+    type: joint_state_controller/JointStateController
+    publish_rate: 200
+
+  velocity:
+    left_wheel_joint:
+      type: velocity_controllers/JointVelocityController
+      joint: left_wheel_joint
+    right_wheel_joint:
+      type: velocity_controllers/JointVelocityController
+      joint: right_wheel_joint
+
+  trajectory:
+    type: velocity_controllers/JointTrajectoryController
+    joints:
+      - left_wheel_joint
+      - right_wheel_joint
+    gains: # Required because we're controlling a velocity interface
+      left_wheel_joint: {p: 1,  d: 0, i: 0.1, i_clamp: 1}
+      right_wheel_joint: {p: 1,  d: 0, i: 0.1, i_clamp: 1}
+
+  diff_drive:
+    type: "diff_drive_controller/DiffDriveController"
+    left_wheel: 'left_wheel_joint'
+    right_wheel: 'right_wheel_joint'
+    pose_covariance_diagonal: [0.001, 0.001, 1000000.0, 1000000.0, 1000000.0, 1000.0]
+    twist_covariance_diagonal: [0.001, 0.001, 1000000.0, 1000000.0, 1000000.0, 1000.0]
+    estimate_velocity_from_position: false # hardware gives wheel velocity only

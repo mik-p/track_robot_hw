@@ -1,0 +1,12 @@
+loop_hz: 10
+ip_address: "192.168.1.177"
+port: "80"
+joints:
+  - left_wheel_joint
+  - right_wheel_joint
+left_wheel_joint:
+  control_endpoint: "/cmd_vel_l"
+  feedback_endpoint: "/vel_l"
+right_wheel_joint:
+  control_endpoint: "/cmd_vel_r"
+  feedback_endpoint: "/vel_r"
