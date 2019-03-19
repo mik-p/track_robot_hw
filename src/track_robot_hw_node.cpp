@@ -1,174 +1,35 @@
 #include <ros/ros.h>
-
-#include <ros/callback_queue.h>
 #include <controller_manager/controller_manager.h>
 
-#include <hardware_interface/joint_command_interface.h>
-#include <hardware_interface/joint_state_interface.h>
-#include <hardware_interface/robot_hw.h>
-
-
-namespace track_robot_hw
-{
-
-typedef struct
-{
-  double position;
-  double velocity;
-} feedback_t;
-
-class HWRESTClient
-{
-public:
-  feedback_t get(std::string endpoint){return {0, 0};}
-  void post(std::string endpoint, double cmd){}
-};
-
-class TrackInterface : public hardware_interface::RobotHW, public hardware_interface::HardwareInterface
-{
-public:
-    TrackInterface(){}
-    ~TrackInterface(){}
-
-    bool init(ros::NodeHandle& root_nh, ros::NodeHandle& rnh, ros::NodeHandle& topics_nh)
-    {
-      // get hw mode
-      rnh.getParam("simulated", simulated);
-      // get hw endpoint
-      rnh.getParam("ip_address", ip_address);
-      rnh.getParam("port", port);
-
-      // get joint names and num of joint
-      std::vector<std::string> joint_names;
-      rnh.getParam("joints", joint_names);
-      int num_joints = joint_names.size();
-      position_state.resize(num_joints);
-      velocity_state.resize(num_joints);
-      effort_state.resize(num_joints);
-      velocity_command.resize(num_joints);
-      control_endpoint.resize(num_joints);
-      feedback_endpoint.resize(num_joints);
-
-      for(int i = 0; i < num_joints; i++)
-      {
-        position_state[i] = 0;
-        velocity_state[i] = 0;
-        effort_state[i] = 0;
-        velocity_command[i] = 0;
-
-        hardware_interface::JointStateHandle jointStateHandle(joint_names[i], &position_state[i], &velocity_state[i], &effort_state[i]);
-        joint_state_interface.registerHandle(jointStateHandle);
-
-        hardware_interface::JointHandle jointVelocityHandle(jointStateHandle, &velocity_command[i]);
-        velocity_joint_interface.registerHandle(jointVelocityHandle);
-
-        rnh.param(joint_names[i] + "/control_endpoint", control_endpoint[i]);
-        rnh.param(joint_names[i] + "/feedback_endpoint", feedback_endpoint[i]);
-      }
-
-      //Register interfaces
-      registerInterface(&joint_state_interface);
-      registerInterface(&velocity_joint_interface);
-    }
-
-    void read(const ros::Time& time, const ros::Duration& period)
-    {
-      for(int i = 0; i < velocity_state.size(); i++) // get feedback from hw
-      {
-        feedback_t feedback = {0, 0};
-
-        if(!simulated)
-        {
-          feedback = hw_client.get("http://" + ip_address + ":" + port + feedback_endpoint[i]);
-        }
-        else
-        {
-          feedback.velocity = velocity_command[i]; // loopback on simulation
-        }
-
-        // set new states
-        velocity_state[i] = feedback.velocity;
-        position_state[i] += velocity_state[i] * period.toSec();
-      }
-    }
-
-    void write(const ros::Time& time, const ros::Duration& period)
-    {
-      if(simulated) return; // do nothing if in simulation
-
-      // probs apply command limits here
-
-      for(int i = 0; i < velocity_state.size(); i++) // publish commands to hw
-      {
-        hw_client.post("http://" + ip_address + ":" + port + control_endpoint[i], velocity_command[i]);
-      }
-    }
-
-protected:
-    hardware_interface::JointStateInterface joint_state_interface;
-    hardware_interface::VelocityJointInterface velocity_joint_interface;
-
-    // actual states
-    std::vector<double> position_state;
-    std::vector<double> velocity_state;
-    std::vector<double> effort_state;
-
-    // given setpoints
-    std::vector<double> velocity_command;
-
-    // simulation flag
-    bool simulated;
-
-    // hardware REST client
-    HWRESTClient hw_client;
-
-    // hw endpoints
-    std::string ip_address;
-    std::string port;
-
-    // read/write endpoints
-    std::vector<std::string> control_endpoint;
-    std::vector<std::string> feedback_endpoint;
-};
-
-} // namespace track_robot_hw
+#include "track_robot_hw/track_interface.h"
+#include "track_robot_hw/rest_client.h"
 
 
 using namespace track_robot_hw;
+
 
 int main(int argc, char **argv)
 {
     ros::init(argc, argv, "track_robot_hw_node");
 
-    ros::CallbackQueue topic_queue;
-
-    ros::AsyncSpinner cm_spinner(1);
-    cm_spinner.start();
-
-    ros::NodeHandle nh;
-    ros::NodeHandle rnh("~");  //make the robot node handle use the private namespace
-    ros::NodeHandle topics_nh("~");  //make the async node handle use the private namespace
-
-    topics_nh.setCallbackQueue(&topic_queue);
-
-    //register realtime publisher
+    ros::NodeHandle nh; // global namespace
+    ros::NodeHandle rnh("~"); // robot private namespace
 
     TrackInterface hw;
 
-    bool init_success = hw.init(nh, rnh, topics_nh);
+    bool init_success = hw.init(nh, rnh);
+
+    ros::Duration period(hw.get_update_duration()); // update rate
 
     controller_manager::ControllerManager cm(&hw, rnh);
 
-    // hw.connect_hardware();
-
-    ros::Duration period(20.0/1000.0); // update rate to suit EnIP implicit io
-    //lenze controllers need 4ms to respond to implicit IO
+    ros::AsyncSpinner cm_spinner(1); // controller manager callback thread
+    cm_spinner.start();
 
     ROS_INFO("track_robot_hw_node started");
+
     while(ros::ok()){
         hw.read(ros::Time::now(), period);
-
-        topic_queue.callOne();  // the bus is safe after read
 
         cm.update(ros::Time::now(), period);
 
