@@ -1,8 +1,10 @@
 <?xml version="1.0"?>
 <launch>
 
-  <include file="$(find track_robot_hw)/launch/display.launch" ns="track_robot_hw" />
+  <!--robot model-->
+  <include file="$(find track_robot_description)/launch/robot.launch" ns="track_robot_hw" />
 
+  <!--controller config-->
   <rosparam file="$(find track_robot_hw)/config/controllers.yaml" command="load" ns="track_robot_hw"/>
   <rosparam file="$(find track_robot_hw)/config/hardware.yaml" command="load" ns="track_robot_hw" />
 
@@ -10,21 +12,15 @@
 
   <node name="state_controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen" ns="track_robot_hw"
       args="
-          controller/state
+        controller/state
   "/>
-
-  <!-- <node name="trajectory_controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen" ns="track_robot_hw"
-      args="
-          controller/trajectory
-  "/>
-
-  <node name="rqt_trajectory_controller" pkg="rqt_joint_trajectory_controller" type="rqt_joint_trajectory_controller" ns="track_robot_hw" /> -->
 
   <node name="diff_drive_controller_spawner" pkg="controller_manager" type="spawner" respawn="false" output="screen" ns="track_robot_hw"
       args="
-          controller/diff_drive
+        controller/diff_drive
   "/>
 
-  <node name="rqt_twist_controller" pkg="rqt_robot_steering" type="rqt_robot_steering" ns="track_robot_hw" />
+  <!--controller ui-->
+<!--  <node name="rqt_twist_controller" pkg="rqt_robot_steering" type="rqt_robot_steering" ns="track_robot_hw" />-->
 
 </launch>
