@@ -1,5 +1,7 @@
 #include "track_robot_hw/track_interface.h"
 
+#include "track_robot_hw/rest_client.h"
+
 
 namespace track_robot_hw
 {
@@ -9,28 +11,47 @@ bool TrackInterface::init(ros::NodeHandle& root_nh, ros::NodeHandle& robot_nh)
 {
   // get hw mode
   robot_nh.getParam("simulated", simulated);
+  if(simulated)
+  {
+    ROS_INFO("hardware simulated");
+  }
 
-  // get joint names and num of joint
+  // get joint names
   std::vector<std::string> joint_names;
   robot_nh.getParam("joints", joint_names);
-  auto num_joints = joint_names.size();
-  position_state.resize(num_joints);
-  velocity_state.resize(num_joints);
-  effort_state.resize(num_joints);
-  velocity_command.resize(num_joints);
+  ROS_INFO("found %i joints", (int)joint_names.size());
 
-  for(auto i = 0; i < num_joints; i++)
+  // destroy any old resources
+  joints.clear();
+
+  // generate hw joint resource list
+  for(auto name : joint_names)
   {
-    position_state[i] = 0;
-    velocity_state[i] = 0;
-    effort_state[i] = 0;
-    velocity_command[i] = 0;
+    HardwareJoint joint;
+    joint.name = name;
+    joints.push_back(joint);
+    ROS_INFO("generated joint: %s", joint.name.c_str());
+  }
 
-    hardware_interface::JointStateHandle jointStateHandle(joint_names[i], &position_state[i], &velocity_state[i], &effort_state[i]);
+  // init hw resources
+  for(HardwareJoint& joint : joints)
+  {
+    joint.position_state = 0;
+    joint.velocity_state = 0;
+    joint.effort_state = 0;
+    joint.velocity_command = 0;
+
+    joint.client = std::make_shared<HWRESTClient>();
+    ros::NodeHandle jnh("~/" + joint.name);
+    joint.client->init(jnh); // TODO implement simulation client
+
+    hardware_interface::JointStateHandle jointStateHandle(joint.name, &joint.position_state, &joint.velocity_state, &joint.effort_state);
     joint_state_interface.registerHandle(jointStateHandle);
 
-    hardware_interface::JointHandle jointVelocityHandle(jointStateHandle, &velocity_command[i]);
+    hardware_interface::JointHandle jointVelocityHandle(jointStateHandle, &joint.velocity_command);
     velocity_joint_interface.registerHandle(jointVelocityHandle);
+
+    ROS_INFO("registered joint: %s", joint.name.c_str());
   }
 
   //Register interfaces
@@ -40,17 +61,17 @@ bool TrackInterface::init(ros::NodeHandle& root_nh, ros::NodeHandle& robot_nh)
 
 void TrackInterface::read(const ros::Time& time, const ros::Duration& period)
 {
-  for(int i = 0; i < velocity_state.size(); i++) // get feedback from hw
+  for(HardwareJoint& joint : joints) // get feedback from hw
   {
     if(!simulated)
     {
-//      position_state[i] = client.get_position();
-      velocity_state[i] = client.get_velocity();
+//      position_state[i] = client->get_position();
+      joint.velocity_state = joint.client->get_velocity(joint.velocity_state);
     }
     else
     {
-      velocity_state[i] = velocity_command[i]; // loopback on simulation
-      position_state[i] += velocity_state[i] * period.toSec();
+      joint.velocity_state = joint.velocity_command; // loopback on simulation
+      joint.position_state += joint.velocity_state * period.toSec(); // fix integration
     }
   }
 }
@@ -61,9 +82,9 @@ void TrackInterface::write(const ros::Time& time, const ros::Duration& period)
 
   // probs apply command limits here
 
-  for(int i = 0; i < velocity_state.size(); i++) // publish commands to hw
+  for(HardwareJoint& joint : joints) // publish commands to hw
   {
-    client.set_velocity(velocity_command[i]);
+    joint.client->set_velocity(joint.velocity_command);
   }
 }
 

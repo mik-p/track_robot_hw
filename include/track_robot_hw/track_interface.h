@@ -1,6 +1,6 @@
 #pragma once
 
-#include "track_robot_hw/hardware_client.h"
+#include "track_robot_hw/hardware_joint.h"
 
 #include <ros/ros.h>
 #include <hardware_interface/joint_command_interface.h>
@@ -28,19 +28,11 @@ protected:
   hardware_interface::JointStateInterface joint_state_interface;
   hardware_interface::VelocityJointInterface velocity_joint_interface;
 
-  // actual states
-  std::vector<double> position_state;
-  std::vector<double> velocity_state;
-  std::vector<double> effort_state;
-
-  // given setpoints
-  std::vector<double> velocity_command;
+  // hardware joint handles
+  std::vector<HardwareJoint> joints;
 
   // simulation flag
   bool simulated;
-
-  // hardware network client
-  HardwareClient& client;
 };
 
 } // namespace track_robot_hw

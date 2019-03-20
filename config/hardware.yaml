@@ -6,8 +6,8 @@ joints:
   - left_wheel_joint
   - right_wheel_joint
 left_wheel_joint:
-  control_endpoint: "/cmd_vel_l"
-  feedback_endpoint: "/vel_l"
+  velocity_control_endpoint: "/cmd_vel_l"
+  velocity_feedback_endpoint: "/vel_l"
 right_wheel_joint:
-  control_endpoint: "/cmd_vel_r"
-  feedback_endpoint: "/vel_r"
+  velocity_control_endpoint: "/cmd_vel_r"
+  velocity_feedback_endpoint: "/vel_r"
