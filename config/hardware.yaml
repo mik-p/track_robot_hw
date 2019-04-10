@@ -3,11 +3,19 @@ ip_address: "192.168.1.177"
 port: "80"
 simulated: true
 joints:
-  - left_wheel_joint
-  - right_wheel_joint
-left_wheel_joint:
+  - left_track_front_wheel_joint
+  - left_track_back_wheel_joint
+  - right_track_front_wheel_joint
+  - right_track_back_wheel_joint
+left_track_front_wheel_joint:
   velocity_control_endpoint: "/cmd_vel_l"
   velocity_feedback_endpoint: "/vel_l"
-right_wheel_joint:
+right_track_back_wheel_joint:
+  velocity_control_endpoint: "/cmd_vel_r"
+  velocity_feedback_endpoint: "/vel_r"
+right_track_front_wheel_joint:
+  velocity_control_endpoint: "/cmd_vel_l"
+  velocity_feedback_endpoint: "/vel_l"
+right_track_back_wheel_joint:
   velocity_control_endpoint: "/cmd_vel_r"
   velocity_feedback_endpoint: "/vel_r"
